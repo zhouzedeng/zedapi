@@ -63,13 +63,13 @@ class UserController extends Controller
         //插入数据
         $data = [];
         $data['company_id'] 	= $company_id;
-        $data['phone'] 			= $inputs['phone'];
+
         $data['nickname'] 		= $inputs['nickname'];
         $data['sex'] 			= $inputs['sex'];
-        
+        $data['headimg'] 			= $inputs['headimg'];
         $data['openid'] 		= $openid; 
         $data['update_at'] 		= date('Y-m-d H:i:s',time());
-        $data['created_at'] 	= date('Y-m-d H:i:s',time());
+  
         
         $uid = DB::table('c_users')->insertGetId($data);
         if($uid > 0)
