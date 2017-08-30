@@ -56,7 +56,7 @@ class UserController extends Controller
         if($user)
         {
         	DB::table('c_users')->where('id',$user->id)->update(['update_at'=>date('Y-m-d H:i:s',time())]);
-        	return success('success',['user_id'=>$user->id,'phone'=>$user->phone]);
+        	return success('success',['user_id'=>hash_encode($user->id),'phone'=>$user->phone]);
         }
 
         
@@ -74,7 +74,7 @@ class UserController extends Controller
         $uid = DB::table('c_users')->insertGetId($data);
         if($uid > 0)
         {
-        	return success('success',['user_id'=>$uid,'phone'=>'']);
+        	return success('success',['user_id'=>hash_encode($uid),'phone'=>'']);
         }
         return  error('fail');
 
