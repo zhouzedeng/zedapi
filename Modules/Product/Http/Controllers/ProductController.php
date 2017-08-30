@@ -8,6 +8,7 @@ use Illuminate\Routing\Controller;
 use App\Model\Product;
 use Illuminate\Http\Request;
 use Hashids;
+use Faker\Provider\Company;
 
 class ProductController extends Controller
 {
@@ -17,21 +18,16 @@ class ProductController extends Controller
      * @param \Illuminate\Http\Request $request
      * @return \Illuminate\Http\Response
      */
-    public function index(Request $request) {
-        $_category_id = $request->input('_category_id');
-        $category_id  = Hashids::decode($_category_id);
-        if (!$category_id) {
-            return error('category.invalid');
-        }
+    public function index($comkey) {
+    	$company_id =  hash_decode($comkey);
+        $products = DB::table('products')
+        	->select(['id', 'cover', 'name', 'old_price','price','unit','status','introduce'])
+			->where('company_id',$company_id)
+			->whereNull('deleted_at')
+			->get();
 
-        $model = Product::select(['id', 'sale_type', 'cover', 'name', 'sales_volume', 'price']);
-        $model->where('category_id', $category_id);
-        $products = $model->paginate(10);
-
-        foreach ($products as $key => $product) {
-            $products[$key]['_id'] = Hashids::encode($product->id);
-            $products[$key]['sale_type_text'] = $product->saleTypeText();
-            $products[$key]['price']          = $product->price / 100.0;
+        foreach ($products as $product) {
+            $product->_id = Hashids::encode($product->id);
         }
         return success('success', $products);
     }
@@ -45,31 +41,28 @@ class ProductController extends Controller
     public function show($_product_id) {
         $product_id = Hashids::decode($_product_id);
         if (!$product_id) {
-            return error('product.invalid');
+            return error('非法的商品ID');
         }
 
-        $model = Product::select(['id', 'sale_type', 'cover', 'name', 'sales_volume', 'price']);
-        $model->where('id', $product_id);
-        $product = $model->first();
-
+        $product = DB::table('products')
+        	->select(['id', 'cover', 'name', 'old_price','price','unit','status','introduce'])
+			->where('id',$product_id)
+			->whereNull('deleted_at')
+			->first();
         if (!$product) {
-            return error('product.not.found');
+            return error('没有该商品');
         }
         $data                   = [];
         $data['_id']            = Hashids::encode($product->id);
-        $data['sale_type']      = $product->sale_type;
-        $data['sale_type_text'] = $product->saleTypeText();
+        $data['name']      		= $product->name;
+        $data['old_price'] 		= $product->old_price;
         $data['cover']          = $product->cover;
         $data['name']           = $product->name;
-        $data['sales_volume']   = $product->sales_volume;
-        $data['price']          = $product->price / 100.0;
-
-        // Product photos
-        $photos = $product->photos()->select(['url'])->get();
-        foreach ($photos as $photo) {
-            $data['photos'][] = $photo->url;
-        }
-
+        $data['price']   		= $product->price;
+        $data['unit']           = $product->unit;
+        $data['status']         = $product->status;
+        $data['introduce']      = $product->introduce;
+        
         return success('success', $data);
     }
 }

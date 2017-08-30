@@ -22,9 +22,9 @@ class UserComboPost extends FormRequest
      */
     public function rules() {
         return [
-            '_userid'         => 'required',
-            '_comboid'  => 'required',  
-            'appkey' => 'required',
+            '_user_id'         => 'required',
+            '_product_id'  => 'required',  
+            'comkey' => 'required',
         ];
     }
 }

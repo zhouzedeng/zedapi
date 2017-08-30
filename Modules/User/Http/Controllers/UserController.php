@@ -23,444 +23,195 @@ class UserController extends Controller
      */
     public function getOpenid(Request $request)
     {
-        $validator = validator($request->all(),
-            [
-                'code'=> 'required|string',
-                'woniu_key'=>'required|string',
-            ]
-        );
-        if($validator->fails())
-        {
-            return error('参数错误!');
-        }
-        $company_id = decrypt_company($request->appkey);
+    	$inputs = $request->all();
+    	$company_id = hash_decode($inputs['comkey']);
        
-        //获取该公司的appid和appsecret
-    
-        $process = DB::table('little_process')->where('company_id',$company_id)->first();
-        if(empty($process))
+        //获取appid和appsecret   
+        $companies = DB::table('companies')->where('id',$company_id)->first();
+        if(empty($companies))
         {
-            return error('appkey不合法');
+            return error('comkey error');
         }
         
         //获取access-token
         $ch = curl_init();
-        curl_setopt($ch, CURLOPT_URL, "https://api.weixin.qq.com/sns/jscode2session?appid=".$process->appid."&secret=".$process->appsecret."&js_code=".$request->code."&grant_type=authorization_code");
+        curl_setopt($ch, CURLOPT_URL, "https://api.weixin.qq.com/sns/jscode2session?appid=".$companies->appid."&secret=".$companies->appsecret."&js_code=".$request->code."&grant_type=authorization_code");
         curl_setopt($ch, CURLOPT_RETURNTRANSFER, 1);
         curl_setopt($ch, CURLOPT_HEADER, 0);
         $output = curl_exec($ch);
         curl_close($ch);
         if(empty($output))
         {
-            return error('appid 或 appsecret 错误');
+            return error('appid  appsecret error');
         }
         $out = json_decode($output);
-		$s_id = uniqid();
-        Cache::store('file')->put($s_id,$out->session_key,60*24*10);
-        $data = [
-        		'openid'=>$out->openid,
-        		'session_id'=>$s_id
-        ]; 
-        return success('success',$data);
+		$openid = $out->openid;
+
+		$user = DB::table('c_users')->where('openid',$openid)->first();
+        if($user)
+        {
+        	DB::table('c_users')->where('id',$user->id)->update(['update_at'=>date('Y-m-d H:i:s',time())]);
+        	return success('success',['user_id'=>$user->id,'phone'=>$user->phone]);
+        }
+
+        
+        //插入数据
+        $data = [];
+        $data['company_id'] 	= $company_id;
+        $data['phone'] 			= $inputs['phone'];
+        $data['nickname'] 		= $inputs['nickname'];
+        $data['sex'] 			= $inputs['sex'];
+        
+        $data['openid'] 		= $openid; 
+        $data['update_at'] 		= date('Y-m-d H:i:s',time());
+        $data['created_at'] 	= date('Y-m-d H:i:s',time());
+        
+        $uid = DB::table('c_users')->insertGetId($data);
+        if($uid > 0)
+        {
+        	return success('success',['user_id'=>$uid,'phone'=>'']);
+        }
+        return  error('fail');
+
     }
-    
-    
-    
-    
+       
     
     /**
      * 获取首页内容
      */
     public function getIndexInfo(Request $request)
     {
-        $company_id = decrypt_company($request->input('appkey'));
+        $company_id = hash_decode($request->input('comkey'));
+
+        $lunbos= DB::table('app_lunbo')->select('imgurl','id')->where('company_id',$company_id)->get();
+        foreach($lunbos as $lunbo)
+        {
+            $lunbo->id = hash_encode($lunbo->id);           
+        }
+        
         $albums = DB::table('albums')
-        ->select('albums.id','albums.name as album_name','like','album_categories.name','cover')
-        ->leftjoin('album_categories', 'album_categories.id','=','albums.category_id')
-        ->whereNull('albums.deleted_at')
+        ->select('id','name','cover')
+        ->whereNull('deleted_at')
         ->where('company_id',$company_id)
         ->where('hot',1)
         ->get();
          
         foreach($albums as $album)
         {
-            $album->id = hash_encode($album->id);
+        	$album->id = hash_encode($album->id);
         }
         
-        $combos = DB::table('combos')
-        ->select('combos.id','combos.name as a_name','combo_categories.name','cover','price')
-        ->leftjoin('combo_categories', 'combo_categories.id','=','combos.category_id')
-        ->whereNull('combos.deleted_at')
+        $goods = DB::table('products')
+        ->select('id','name','cover','price','unit')
+        ->whereNull('deleted_at')
         ->where('company_id',$company_id)
         ->where('hot',1)
         ->get();
-        
-        foreach($combos as $combo)
+         
+        foreach($goods as $good)
         {
-            $combo->id = hash_encode($combo->id);
-        }
-        
-        //更新活动状态
-        $this->update_activity($company_id);
-        $activities = DB::table('activity')
-        ->select('id','cover','name','before_price','new_price','start_time','end_time','status','combo_id')
-        ->where('company_id',$company_id)
-        ->where('hot',1)
-        ->get();
-        foreach($activities as $activity)
-        {
-            $activity->id = hash_encode($activity->id);
-            $activity->status_name = activity_status($activity->status);
-            $activity->combo_id = hash_encode($activity->combo_id);
-            $activity->before_price = format_price($activity->before_price);
-            $activity->new_price = format_price($activity->new_price);
-        }
-        
-
-        $lunbos= DB::table('app_lunbo')->select('imgurl','id','link','link_type')->where('company_id',$company_id)->where('type',1)->get();
-        foreach($lunbos as $lunbo)
-        {
-            $lunbo->id = hash_encode($lunbo->id);
-            $lunbo->link = hash_encode($lunbo->link);            
+        	$good->id = hash_encode($good->id);
         }
 
-        $uss = DB::table('app_abortus')->select('id','content')->where('company_id',$company_id)->get();
-        foreach($uss as $us)
+        $shops = DB::table('app_abortus')->select('id','content','shop_img')->where('company_id',$company_id)->get();
+        foreach($shops as $shop)
         {
-            $us->id = hash_encode($us->id);
+            $shop->id = hash_encode($shop->id);
         }
+
         
-        $gifts = DB::table('gift')->select('id','name','price','introduce','detail','created_at','update_at')->where('company_id',$company_id)->get();
-        foreach($gifts as $gift)
-        {
-        	$gift->id = hash_encode($gift->id);
-        }
-        
-        $data = ['gifts'=>$gifts,'activities'=>$activities,'albums'=>$albums,'combos'=>$combos,'runob'=>$lunbos,'us'=>$uss];       
+        $data = ['albums'=>$albums,'runob'=>$lunbos,'us'=>$shops,'goods'=>$goods];       
         return success('success',$data);
    
     }
-    
-    
-   /**
-    * 
-    * @param unknown $company_id
-    */
-    public function update_activity($company_id)
-    {
-    
-        DB::table('activity')->where('company_id',$company_id)
-        ->where('end_time', "<", date('Y-m-d H:i:s',time()))
-        ->update(['status'=>2]);
-    
-        DB::table('activity')->where('company_id',$company_id)
-        ->where('end_time', ">", date('Y-m-d H:i:s',time()))
-        ->where('start_time', "<", date('Y-m-d H:i:s',time()))
-        ->update(['status'=>1]);
-    
-    }
-    /**
-     * 存储C端用户信息
-     * 
-     */
-    public function store(UserGet $request)
-    {
-        $inputs = $request->all();
-        $company_id = decrypt_company($inputs['appkey']);
-        $this->check_company($company_id);
 
-        //插入数据
-        $data = [];
-        $data['company_id'] = $company_id;
-        $data['phone'] = $inputs['phone'];
-        $data['username'] = $inputs['username'];
-        $data['sex'] = $inputs['sex'];
-        $data['wx_openid'] = $inputs['openid'];
-        $data['wx_headimgurl'] = $inputs['headimgurl'];
-        $data['wx_nickname'] = $inputs['nickname'];
-        $data['created_at'] = date('Y-m-d H:i:s',time());
-        $res = DB::table('c_users')->insert($data);
-        if($res)
-        {
-            return success('success');
-        }
-        return  error('add user fail!');
-    }
-    
-    
     /**
-     * 存储C端访问游客
-     *
+     * 用户预约商品
      */
-    public function visitor_store(Request $request)
+    public function user_product(UserComboPost $request)
     {
         $inputs = $request->all();
-        validator($inputs,[
-                'appkey'=>'require',
-                'openid'=>'require|string',
-                'headimgurl'=>'require|string',
-                'nickname'=>'require|string',
-                'sex'=>'require'
-        ]);        
-        $company_id = decrypt_company($inputs['appkey']);    
-        //插入数据
-        $data = [];      
-        $data['sex'] = $inputs['sex'];
-        $data['openid'] = $inputs['openid'];
-        $data['headimgurl'] = $inputs['headimgurl'];
-        $data['nickname'] = $inputs['nickname'];
-        $data['created_at'] = date('Y-m-d H:i:s',time());
-        $data['update_at'] = date('Y-m-d H:i:s',time());
-        $data['company_id'] = $company_id;
+
+        $company_id = hash_decode($inputs['comkey']);
+        $product_id = hash_decode($inputs['_product_id']);           
+        $user_id    = hash_decode($inputs['_user_id']);
         
-        $check = DB::table('c_visitor')->where('openid',$inputs['openid'])->first();
+        //判断是否已经预定
+        $check = DB::table('c_user_product')->where('user_id',$user_id)->where('product_id',$product_id)->first();
         if($check)
         {
-        	$res = DB::table('c_visitor')->where('openid',$inputs['openid'])->update(['update_at'=>date('Y-m-d H:i:s',time())]);
-        }
-        else
-        {
-        	$res = DB::table('c_visitor')->insert($data);
-        	
-        }
-        if($res)
-        {
-        	return success('success');
-        }
-        return  error('add user fail!');
-
-    }
-
-    /**
-     * 通过微信openid获取用户信息
-     * params: openid
-     * 
-     */
-    public function getUsersByUnionid(UserInfoGet $request)
-    {        
-        $openid = $request->input('openid');
-        $user = DB::table('c_users')->select(['id','username','wx_headimgurl'])->where('wx_openid',$openid)->first();
-        if($user)
-        {
-            $userid = $user->id;
-            $user->id = Hashids::encode($userid);
-        }
-        return success('success',$user);                
-    }
-    
-    /**
-     * 用户预约套系
-     * params: userid\comboid\appkey
-     */
-    public function user_combo(UserComboPost $request)
-    {
-        $inputs = $request->all();
-        //解密+检测
-        $company_id = decrypt_company($inputs['appkey']);
-        $check_company = $this->check_company($company_id);
-        if(empty($check_company))
-        {
-            return error('companyid is invalid!');
+            return error('您已经预约过该商品了');
         }
         
-        $_comboid = $inputs['_comboid'];
-        $comboid = Hashids::decode($_comboid);           
-        $check_combo = $this->check_combo($comboid);
-        if(empty($check_combo))
-        {
-            return error('comboid is invalid!');
-        }
-        
-        
-        $_userid = $inputs['_userid'];
-        $userid  = Hashids::decode($_userid);
-        
-        //判断是否已经预约过
-        $check = DB::table('c_user_combo')->where('user_id',$userid)->where('combo_id',$comboid)->first();
-        if($check)
-        {
-            return error('您已经预约过该套系了');
-        }
-        
-        $data = ['user_id'=>$userid[0],'combo_id'=>$comboid[0],'company_id'=>$company_id,'apply_time'=>date('Y-m-d H:i:s',time())];
-        $add  = DB::table('c_user_combo')->insert($data);
+        $data = ['user_id'=>$user_id,'product_id'=>$product_id,'company_id'=>$company_id];
+        $add  = DB::table('c_user_product')->insert($data);
         if($add)
         {
-            return success('预约成功!');
+            return success('预定成功!');
         }
-        return success('预约失败,服务器繁忙,请重试!');
+        return success('预定失败!');
         
     }
     
 
     
     /**
-     * 用户取消套系预约
+     * 用户取消预定
      * params: userid\comboid\appkey
      */
-    public function cancel_user_combo(UserComboPost $request)
+    public function cancel_user_product(UserComboPost $request)
     {
     	$inputs = $request->all();
-    	//解密+检测
-    	$company_id = decrypt_company($inputs['appkey']);
-    	$check_company = $this->check_company($company_id);
-    	if(empty($check_company))
-    	{
-    		return error('companyid is invalid!');
-    	}
-    
-    	$_comboid = $inputs['_comboid'];
-    	$comboid = Hashids::decode($_comboid);
-    	$check_combo = $this->check_combo($comboid);
-    	if(empty($check_combo))
-    	{
-    		return error('comboid is invalid!');
-    	}
-    
-    
-    	$_userid = $inputs['_userid'];
-    	$userid  = Hashids::decode($_userid);
-    
-    	//判断是否已经预约过
-    	$check = DB::table('c_user_combo')->where('user_id',$userid)->where('combo_id',$comboid)->first();
+    	
+    	$company_id = hash_decode($inputs['comkey']);
+        $product_id = hash_decode($inputs['_product_id']);           
+        $user_id    = hash_decode($inputs['_user_id']);
+        //判断是否已经预定
+        $check = DB::table('c_user_product')->where('user_id',$user_id)->where('product_id',$product_id)->first();
     	if(empty($check))
     	{
-    		return error('您还没有预约过该套系');
+    		return success('取消预约成功!');
     	}
     
-    	$data = ['user_id'=>$userid[0],'combo_id'=>$comboid[0],'company_id'=>$company_id];
-    	$add  = DB::table('c_user_combo')->where($data)->delete();
+    	$data = ['user_id'=>$user_id,'product_id'=>$product_id,'company_id'=>$company_id];
+    	$add  = DB::table('c_user_product')->where($data)->delete();
     	if($add)
     	{
     		return success('取消预约成功!');
     	}
-    	return success('取消预约失败,服务器繁忙,请重试!');
+    	return success('取消预约失败');
     
     }
     
     
     /**
-     * 获取用户预约的套系列表
+     * 我的预定
      * 参数:appkey,user_id
      */
-    public function getUserCombos(Request $request)
+    public function getUserProduct(Request $request)
     {
         $inputs = $request->all();
         validator($inputs,[
-                'appkey'=>'require',
-                'user_id'=>'require|string'
+                'comkey'=>'require',
+                '_user_id'=>'require'
         ]);
+       
+        $company_id = hash_decode($inputs['comkey']);        
+        $user_id    = hash_decode($inputs['_user_id']);
         
-        $company_id = decrypt_company($inputs['appkey']);
-        $user_id = hash_decode($inputs['user_id']);
-        $combos = DB::table('c_user_combo')       
-                            ->select(['combo_id','cover','name','price','apply_time'])
-                            ->leftJoin('combos', 'combos.id','=','c_user_combo.combo_id')
-                            ->where(['user_id'=>$user_id,'company_id'=>$company_id])
-                            ->paginate(10);
-        foreach ($combos as $combo){
-            $combo->created_at = date('m/d H:i:s',strtotime($combo->apply_time));
-            $combo->price = ($combo->price)/100;
-        	$combo->combo_id = hash_encode($combo->combo_id);
+        $products = DB::table('c_user_product')       
+                            ->select(['products.id', 'cover', 'name', 'old_price','price','unit','status','introduce'])
+                            ->leftJoin('products', 'products.id','=','c_user_product.product_id')
+                            ->where(['user_id'=>$user_id,'c_user_product.company_id'=>$company_id])
+                            ->orderByDesc('c_user_product.id')
+                            ->get();
+        foreach ($products as $product){          
+        	$product->_product_id = hash_encode($product->id);
         }
-   	    return success('success',$combos);
-    }
-    
-    /**
-     * 获取用户预约的活动列表
-     * 参数:appkey,user_id
-     */
-    public function getUserActivity(Request $request)
-    {
-    	$inputs = $request->all();
-    	validator($inputs,[
-    			'appkey'=>'require',
-    			'user_id'=>'require|string'
-    	]);
-    
-    	$company_id = decrypt_company($inputs['appkey']);
-    	$user_id = hash_decode($inputs['user_id']);
-    	$activities = DB::table('c_user_activity')
-    	->select(['activity_id','cover','name','new_price','before_price','created_at'])
-    	->leftJoin('activity', 'activity.id','=','c_user_activity.activity_id')
-    	->where(['user_id'=>$user_id,'c_user_activity.company_id'=>$company_id])
-    	->paginate(10);
-    	foreach ($activities as $activity){
-    	       $activity->created_at = date('m/d H:i:s',strtotime($activity->created_at));
-    		$activity->activity_id = hash_encode($activity->activity_id);
-    		$activity->before_price = format_price($activity->before_price);
-    		$activity->new_price = format_price($activity->new_price);
-    	}
-    	return success('success',$activities);
-    }
-    
-    /**
-     * 获取用户收藏列表
-     * 参数:appkey,user_id
-     */
-    public function getUserCollet(Request $request)
-    {
-    	$inputs = $request->all();
-    	validator($inputs,[
-    			'appkey'=>'require',
-    			'user_id'=>'require|string'
-    	]);
-    
-    	$company_id = decrypt_company($inputs['appkey']);
-    	$user_id = hash_decode($inputs['user_id']);
-    	$collets = DB::table('c_user_collet')
-    	->where('user_id',$user_id)
-    	->select(['id','common_id','type','created_at'])    
-    	->paginate(10);
-    	foreach ($collets as $collet){
-    	      if($collet->type == 2)
-    	      {
-    	          $combo = DB::table('combos')
-    	          ->select(['name','price','cover'])
-    	          ->where('id',$collet->common_id)
-    	          ->first();  
-    	          $collet->name = $combo->name;
-    	          $collet->price = format_price($combo->price);
-    	          $collet->cover = $combo->cover;
-    	      }
-    	      if($collet->type == 3)
-    	      {
-    	          $activity = DB::table('activity')
-    	          ->select(['name','new_price','cover'])
-    	          ->where('id',$collet->common_id)
-    	          ->first();
-    	          $collet->name = $activity->name;
-    	          $collet->price = format_price($activity->new_price);
-    	          $collet->cover = $activity->cover;
-    	      }
-    	    
-    	      $collet->created_at = date('m/d H:i:s',strtotime($collet->created_at));
-    		$collet->common_id = hash_encode($collet->common_id);
-    	}
-    	return success('success',$collets);
-    }
-    
 
-    
-    public function getCompany(Request $request){
-    	$inputs = $request->all();
-    	validator($inputs,[
-    			'appkey'=>'required',
-    	]);
-    	$_company_id = $inputs['appkey'];
-    	$company_id = decrypt_company($_company_id);
-    	$company = DB::table('companies')
-    					->select(['name','address','color','latitude','longitude','telephone'])
-    					->leftJoin('little_process', 'little_process.company_id','=','companies.id')
-    					->where('companies.id',$company_id)
-    					->first();
-    	if($company){
-    		$company->color = "#".$company->color;
-    	}
-    	return success('success',$company);
+   	    return success('success',$products);
     }
     
-
     
     /****************************功能函数****************************************************/
     /**

@@ -21,6 +21,7 @@ class AlbumController extends Controller
         $albums = DB::table('albums')
         					->select(['id', 'cover', 'name', 'photo_number'])
 							->where('company_id',$company_id)
+							->whereNull('deleted_at')
         					->get(20); 
            
         foreach ($albums  as $album) {
@@ -47,6 +48,7 @@ class AlbumController extends Controller
     	$photos = DB::table('album_photos')
     	->select(['id', 'url'])
     	->where('album_id',$album_id)
+    	->whereNull('deleted_at')
     	->get();
 
     	foreach ($photos as $photo)
