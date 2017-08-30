@@ -17,6 +17,11 @@ use Cache;
 use App\Lib\WXBizDataCrypt;
 class UserController extends Controller
 {
+    
+    
+    public function getHash($id){
+        return  hash_encode($id);
+    }
 
     /**
      * get openid
