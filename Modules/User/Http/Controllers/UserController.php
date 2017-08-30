@@ -104,6 +104,7 @@ class UserController extends Controller
         foreach($albums as $album)
         {
         	$album->id = hash_encode($album->id);
+        	$album->cover = env('APP_CDN').$album->cover;
         }
         
         $goods = DB::table('products')
