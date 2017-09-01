@@ -125,8 +125,9 @@ class UserController extends Controller
             $shop->id = hash_encode($shop->id);
         }
 
-        
-        $data = ['albums'=>$albums,'runob'=>$lunbos,'us'=>$shops,'goods'=>$goods];       
+        $company = DB::table('companies')->select(['name','logo','address','latitude','longitude','telephone','status','notice','shop_introduce'])->where('company_id',$company_id)->first();
+
+        $data = ['company'=>$company,'albums'=>$albums,'runob'=>$lunbos,'us'=>$shops,'goods'=>$goods];       
         return success('success',$data);
    
     }
