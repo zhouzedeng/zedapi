@@ -8,6 +8,7 @@ Route::group([ 'prefix' => 'api', 'namespace' => 'Modules\User\Http\Controllers'
 	Route::get('index/list', 'UserController@getIndexInfo');
 	Route::get('openid', 'UserController@getOpenid');
 	Route::get('getHash/{id}', 'UserController@getHash');
+	Route::get('get/com', 'UserController@getCom');
 	
 	   
     Route::get('send/sms', 'UserController@send_sms');
