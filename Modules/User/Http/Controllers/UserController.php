@@ -79,7 +79,13 @@ class UserController extends Controller
         return  error('fail');
 
     }
-       
+    public function getCom(Request $request){
+        $company_id = hash_decode($request->input('comkey'));
+        $company = DB::table('companies')->select(['name','logo','address','latitude','longitude','telephone','status','notice','shop_introduce'])->where('id',$company_id)->first();
+        return success('success',['company',$company]);
+    }
+    
+   
     
     /**
      * 获取首页内容
