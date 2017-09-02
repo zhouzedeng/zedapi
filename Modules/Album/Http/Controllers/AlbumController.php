@@ -22,7 +22,7 @@ class AlbumController extends Controller
         					->select(['id', 'cover', 'name', 'photo_number'])
 							->where('company_id',$company_id)
 							->whereNull('deleted_at')
-        					->get(20); 
+        					->get(); 
            
         foreach ($albums  as $album) {
             $album->id = Hashids::encode($album->id);

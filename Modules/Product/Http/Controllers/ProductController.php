@@ -9,6 +9,7 @@ use App\Model\Product;
 use Illuminate\Http\Request;
 use Hashids;
 use Faker\Provider\Company;
+use DB;
 
 class ProductController extends Controller
 {
