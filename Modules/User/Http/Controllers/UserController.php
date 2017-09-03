@@ -243,7 +243,7 @@ class UserController extends Controller
         $user_id    = hash_decode($inputs['_user_id']);
         
         $products = DB::table('c_user_product')       
-                            ->select(['products.id', 'cover', 'name', 'old_price','price','unit','status','introduce'])
+                            ->select(['products.id', 'cover', 'name', 'old_price','price','unit','c_user_product.status','introduce'])
                             ->leftJoin('products', 'products.id','=','c_user_product.product_id')
                             ->where(['user_id'=>$user_id,'c_user_product.company_id'=>$company_id])
                             ->orderByDesc('c_user_product.id')
