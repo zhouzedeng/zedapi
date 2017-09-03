@@ -10,6 +10,7 @@ Route::group([ 'prefix' => 'api', 'namespace' => 'Modules\User\Http\Controllers'
 	Route::get('getHash/{id}', 'UserController@getHash');
 	Route::get('get/com', 'UserController@getCom');
 	Route::get('tel', 'UserController@update_tel');
+	Route::get('set_en', 'UserController@updateCompany');
 	
 	
 	   

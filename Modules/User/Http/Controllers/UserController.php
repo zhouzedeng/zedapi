@@ -85,7 +85,19 @@ class UserController extends Controller
         return success('success',['company',$company]);
     }
     
-   
+
+    /**
+     * 获取首页内容
+     */
+    public function updateCompany()
+    {
+        $companys = DB::table('companies')->whereNull('en_id')->get();
+        foreach ($companys as $company){
+            $en_id = hash_encode($company->id);
+            DB::table('companies')->where('id',$company->id)->update(['en_id',$en_id]);
+        }
+        return success('success');
+    }
     
     /**
      * 获取首页内容
