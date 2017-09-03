@@ -167,6 +167,24 @@ class UserController extends Controller
     }
     
 
+    /**
+     * 用户绑定、修改手机
+     */
+    public function update_tel(Request $request)
+    {
+        $inputs = $request->all();
+        $tel = $inputs['tel'];
+        $user_id    = hash_decode($inputs['_user_id']);
+        
+        
+        $add  = DB::table('c_users')->where('id',$user_id)->update(['phone'=>$tel]);
+        if($add)
+        {
+            return success('绑定成功!',['status'=>0]);
+        }
+        return success('绑定失败!',['status'=>-1]);
+    
+    }
     
     /**
      * 用户取消预定
