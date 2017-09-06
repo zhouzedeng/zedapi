@@ -87,11 +87,11 @@ class UserController extends Controller
     
 
     /**
-     * 获取首页内容
+     * 
      */
     public function updateCompany()
     {
-        $companys = DB::table('companies')->whereNull('en_id')->get();
+        $companys = DB::table('companies')->whereNull('en_id')->orWhere('en_id','')->get();
         foreach ($companys as $company){
             $en_id = hash_encode($company->id);
             DB::table('companies')->where('id',$company->id)->update(['en_id'=>$en_id]);
